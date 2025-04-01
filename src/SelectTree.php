@@ -40,9 +40,9 @@ class SelectTree extends Field implements HasAffixActions
 
     protected ?string $customKey = null;
 
-    protected string $titleAttribute;
+    protected string $titleAttribute = 'name';
 
-    protected string $parentAttribute;
+    protected string $parentAttribute = 'parent';
 
     protected null|int|string $parentNullValue = null;
 
@@ -54,7 +54,8 @@ class SelectTree extends Field implements HasAffixActions
 
     protected bool $grouped = true;
 
-    protected string|Closure $relationship;
+    // Initialize with a safe default to avoid the "property must not be accessed before initialization" error
+    protected string|Closure $relationship = 'placeholder';
 
     protected ?Closure $modifyQueryUsing;
 
@@ -336,8 +337,13 @@ class SelectTree extends Field implements HasAffixActions
     public function getRelationship(): BelongsToMany|BelongsTo|null
     {
         try {
-            // For custom implementations where the relationship isn't a real model relation
-            if ($this->relationship === 'placeholder' || !method_exists($this->getModelInstance(), $this->evaluate($this->relationship))) {
+            // For custom implementations using getTreeUsing, don't even try to get a real relationship
+            if ($this->getTreeUsing || $this->relationship === 'placeholder') {
+                return null;
+            }
+            
+            // Check if the model instance exists and if it has the relationship method
+            if (!$this->getModelInstance() || !method_exists($this->getModelInstance(), $this->evaluate($this->relationship))) {
                 return null;
             }
             
@@ -461,6 +467,19 @@ class SelectTree extends Field implements HasAffixActions
         
         return $this->evaluate($this->buildTree()->when($this->prepend,
             fn (Collection $tree) => $tree->prepend($this->evaluate($this->prepend))));
+    }
+
+    /**
+     * Set a custom function to generate the tree data.
+     * 
+     * @param Closure $callback
+     * @return $this
+     */
+    public function getTreeUsing(Closure $callback): static
+    {
+        $this->getTreeUsing = $callback;
+        
+        return $this;
     }
 
     public function getResults(): Collection|array|null
@@ -669,19 +688,6 @@ class SelectTree extends Field implements HasAffixActions
     {
         $this->createOptionModalHeading = $heading;
 
-        return $this;
-    }
-
-    /**
-     * Set a custom function to generate the tree data.
-     * 
-     * @param Closure $callback
-     * @return $this
-     */
-    public function getTreeUsing(Closure $callback): static
-    {
-        $this->getTreeUsing = $callback;
-        
         return $this;
     }
 }
